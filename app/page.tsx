@@ -8,7 +8,6 @@ import {
   useState,
   type ComponentType,
   type SVGProps,
-  type JSX,
 } from "react";
 import { motion } from "framer-motion";
 import classNames from "classnames";
@@ -42,13 +41,6 @@ type StatusKey = keyof typeof statusStyle;
 type ActivityItem = {
   ts: number;
   message: string;
-};
-
-type ClientTool = {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-  execute: (args?: any) => Promise<string>;
 };
 
 const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
@@ -203,51 +195,64 @@ export default function Home() {
     [callApi, captureFrame, pushActivity]
   );
 
-  const clientTools: ClientTool[] = useMemo(
-    () => [
-      {
-        name: "getVisualContext",
-        description: "Analyze the camera view",
-        parameters: {},
-        execute: toolHandlers.getVisualContext,
+  const clientToolsConfig = useMemo(
+    () => ({
+      getVisualContext: async () => {
+        console.log("[ClientTool] getVisualContext called by agent");
+        const result = await toolHandlers.getVisualContext();
+        console.log("[ClientTool] getVisualContext returning to agent:", result);
+        console.log("[ClientTool] getVisualContext result type:", typeof result);
+        return result;
       },
-      {
-        name: "webSearch",
-        description: "Search the web",
-        parameters: {
-          type: "object",
-          properties: { query: { type: "string" } },
-          required: ["query"],
-        },
-        execute: toolHandlers.webSearch,
+      webSearch: async ({ query }: { query: string }) => {
+        console.log("[ClientTool] webSearch called by agent with query:", query);
+        const result = await toolHandlers.webSearch({ query });
+        console.log("[ClientTool] webSearch returning to agent:", result);
+        return result;
       },
-      {
-        name: "saveMemory",
-        description: "Save a fact to long-term memory",
-        parameters: {
-          type: "object",
-          properties: { fact: { type: "string" } },
-          required: ["fact"],
-        },
-        execute: toolHandlers.saveMemory,
+      saveMemory: async ({ fact }: { fact: string }) => {
+        console.log("[ClientTool] saveMemory called by agent with fact:", fact);
+        const result = await toolHandlers.saveMemory({ fact });
+        console.log("[ClientTool] saveMemory returning to agent:", result);
+        return result;
       },
-      {
-        name: "readMemory",
-        description: "Retrieve saved memories",
-        parameters: {},
-        execute: toolHandlers.readMemory,
+      readMemory: async () => {
+        console.log("[ClientTool] readMemory called by agent");
+        const result = await toolHandlers.readMemory();
+        console.log("[ClientTool] readMemory returning to agent:", result);
+        return result;
       },
-    ],
+    }),
     [toolHandlers]
   );
 
   const conversation = useConversation({
-    agentId: AGENT_ID || "",
-    clientTools: clientTools as any,
-  } as any);
+    onConnect: () => {
+      pushActivity("Agent connected");
+      setStatus("Listening");
+    },
+    onDisconnect: () => {
+      pushActivity("Agent disconnected");
+      setStatus("Idle");
+    },
+    onMessage: (message) => {
+      if (message.message) {
+        pushActivity(`Agent: ${message.message.slice(0, 100)}${message.message.length > 100 ? '...' : ''}`);
+      }
+    },
+    onError: (error: Error | string) => {
+      const errorMessage = typeof error === 'string' ? error : error?.message || "Agent error";
+      setStatus("Error");
+      setError(errorMessage);
+      pushActivity(`Error: ${errorMessage}`);
+    },
+    onUnhandledClientToolCall: (toolCall) => {
+      pushActivity(`Unhandled tool call: ${toolCall.tool_name || JSON.stringify(toolCall)}`);
+      console.warn(`Unhandled client tool call:`, toolCall);
+    },
+  });
 
-  const { connect, disconnect, isConnected, isRecording, startRecording, stopRecording, status: agentStatus } =
-    conversation as any;
+  const { status: agentStatus, isSpeaking } = conversation;
 
   const handleAgentToggle = async () => {
     if (!AGENT_ID) {
@@ -255,25 +260,23 @@ export default function Home() {
       return;
     }
     try {
-      if (!isConnected) {
+      if (agentStatus === "disconnected") {
         setStatus("Listening");
-        await connect?.();
-        await startRecording?.();
-        pushActivity("Agent connected");
-      } else if (!isRecording) {
-        setStatus("Listening");
-        await startRecording?.();
-        pushActivity("Agent listening");
+        // Request microphone permission first
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        await conversation.startSession({
+          agentId: AGENT_ID,
+          clientTools: clientToolsConfig,
+        });
       } else {
         setStatus("Idle");
-        await stopRecording?.();
-        pushActivity("Agent paused");
+        await conversation.endSession();
       }
-    } catch (err: any) {
-      const message = err?.message || "Agent error";
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Agent error";
       setStatus("Error");
-      setError(message);
-      pushActivity(`Agent error → ${message}`);
+      setError(errorMessage);
+      pushActivity(`Agent error → ${errorMessage}`);
     }
   };
 
@@ -298,22 +301,24 @@ export default function Home() {
   const chip = statusStyle[status] || statusStyle.Idle;
 
   return (
-    <div className="relative min-h-[calc(100vh-5rem)] overflow-hidden">
+    <div className="relative min-h-[calc(100vh-7rem)] overflow-hidden">
       <video ref={videoBgRef} className="video-bg" muted playsInline autoPlay />
       <canvas ref={canvasRef} className="hidden" />
+      <div className="aurora" />
       <div className="grid-overlay" />
 
-      <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-4 pb-16 pt-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.25em] text-emerald-300">Operation: Second Sight</p>
-            <h1 className="text-3xl font-semibold text-white drop-shadow">Multimodal HUD for the Blind</h1>
-            <p className="text-sm text-slate-300">See, know, and remember—powered by ElevenLabs + Clerk + Anthropic + Tavily.</p>
+      <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-4 pb-16 pt-2">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="space-y-2">
+            <h1 className="hero-title">Multimodal HUD for the Blind</h1>
+            <p className="hero-subtitle">See, know, and remember—powered by ElevenLabs + Clerk + Anthropic + Tavily.</p>
           </div>
-          <div className={classNames("status-chip", chip.chip)}>
-            <span className={classNames("status-dot", chip.dot)} />
-            <span>{status}</span>
-            {agentStatus && <span className="text-xs text-slate-200/80">Agent: {String(agentStatus)}</span>}
+          <div className="glass-rail">
+            <div className={classNames("status-chip", chip.chip)}>
+              <span className={classNames("status-dot", chip.dot)} />
+              <span>{status}</span>
+              {agentStatus && <span className="text-xs text-slate-200/80">Agent: {String(agentStatus)}</span>}
+            </div>
           </div>
         </div>
 
@@ -337,7 +342,7 @@ export default function Home() {
           <div className="hud-grid">
             <div className="hud-panel p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-emerald-200">
+                <div className="flex items-center gap-2 panel-title">
                   <Radio className="h-4 w-4" />
                   Live Agent Link
                 </div>
@@ -353,34 +358,30 @@ export default function Home() {
                   )}
                 >
                   <div className="pulse-ring" aria-hidden />
-                  {isConnected && isRecording ? <Square className="h-8 w-8" /> : <Mic className="h-8 w-8" />}
+                  {agentStatus === "connected" ? <Square className="h-8 w-8" /> : <Mic className="h-8 w-8" />}
                 </motion.button>
               </div>
               <div className="flex items-center justify-between text-sm text-slate-300">
-                <span>{isConnected ? (isRecording ? "Listening" : "Connected") : "Disconnected"}</span>
+                <span>
+                  {agentStatus === "connected" 
+                    ? (isSpeaking ? "Agent speaking..." : "Listening") 
+                    : agentStatus === "connecting" 
+                      ? "Connecting..." 
+                      : "Disconnected"}
+                </span>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => connect?.()}
+                    onClick={() => handleAgentToggle()}
                     className="rounded-full px-3 py-1 border border-white/10 hover:bg-white/5 transition"
                   >
-                    Connect
-                  </button>
-                  <button
-                    onClick={() => {
-                      stopRecording?.();
-                      disconnect?.();
-                      setStatus("Idle");
-                    }}
-                    className="rounded-full px-3 py-1 border border-white/10 hover:bg-white/5 transition"
-                  >
-                    Disconnect
+                    {agentStatus === "connected" ? "Disconnect" : "Connect"}
                   </button>
                 </div>
               </div>
             </div>
 
             <div className="hud-panel p-5 space-y-4">
-              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-emerald-200">
+              <div className="flex items-center gap-2 panel-title">
                 <Activity className="h-4 w-4" />
                 Manual Tools (always on)
               </div>
@@ -417,7 +418,7 @@ export default function Home() {
             </div>
 
             <div className="hud-panel p-5 space-y-4">
-              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-emerald-200">
+              <div className="flex items-center gap-2 panel-title">
                 <Link2 className="h-4 w-4" />
                 Agent Telemetry
               </div>
@@ -436,12 +437,11 @@ export default function Home() {
             </div>
 
             <div className="hud-panel p-5 space-y-3">
-              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-emerald-200">
+              <div className="flex items-center gap-2 panel-title">
                 <Camera className="h-4 w-4" />
                 Camera Feed
               </div>
-              <div className="relative overflow-hidden rounded-xl border border-emerald-400/20 bg-black/40">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-sky-500/10" />
+              <div className="camera-frame">
                 <video
                   ref={videoHudRef}
                   className="relative z-10 h-64 w-full object-cover"
@@ -475,13 +475,12 @@ function ToolCard({
   return (
     <button
       onClick={onClick}
-      className="group relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-emerald-400/60 hover:shadow-glow"
+      className="group tool-card p-4 text-left"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-cyan-500/10 opacity-0 transition group-hover:opacity-100" />
       <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 p-2 shadow-glow">
-            <Icon className="h-5 w-5 text-emerald-200" />
+          <div className="tool-card-icon rounded-lg p-2">
+            <Icon className="h-5 w-5 text-emerald-100" />
           </div>
           <div>
             <p className="text-sm font-semibold text-white">{label}</p>

@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return (
       <html lang="en">
         <body className="min-h-screen bg-slate-950 text-slate-50">
-          <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between px-6 py-4 backdrop-blur-md bg-slate-950/70 border-b border-white/10">
+          <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-slate-950 border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-glow" />
               <div>
@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </div>
           </header>
-          <main className="pt-20">
+          <main className="pt-28">
             <div className="mx-auto max-w-2xl p-6 hud-panel text-amber-200">
               Provide NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to enable auth.
             </div>
@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider publishableKey={publishableKey}>
       <html lang="en">
         <body className="min-h-screen bg-slate-950 text-slate-50">
-          <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between px-6 py-4 backdrop-blur-md bg-slate-950/70 border-b border-white/10">
+          <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-slate-950 border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-glow" />
               <div>
@@ -65,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </SignedIn>
             </div>
           </header>
-          <main className="pt-20">{children}</main>
+          <main className="pt-28">{children}</main>
         </body>
       </html>
     </ClerkProvider>
