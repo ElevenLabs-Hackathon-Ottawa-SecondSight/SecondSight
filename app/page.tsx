@@ -234,6 +234,44 @@ export default function Home() {
     [toolHandlers]
   );
 
+  const clientTools: ClientTool[] = useMemo(
+    () => [
+      {
+        name: "getVisualContext",
+        description: "Analyze the camera view",
+        parameters: {},
+        execute: clientToolsConfig.getVisualContext,
+      },
+      {
+        name: "webSearch",
+        description: "Search the web",
+        parameters: {
+          type: "object",
+          properties: { query: { type: "string" } },
+          required: ["query"],
+        },
+        execute: clientToolsConfig.webSearch,
+      },
+      {
+        name: "saveMemory",
+        description: "Save a fact to long-term memory",
+        parameters: {
+          type: "object",
+          properties: { fact: { type: "string" } },
+          required: ["fact"],
+        },
+        execute: clientToolsConfig.saveMemory,
+      },
+      {
+        name: "readMemory",
+        description: "Retrieve saved memories",
+        parameters: {},
+        execute: clientToolsConfig.readMemory,
+      },
+    ],
+    [clientToolsConfig]
+  );
+
   const conversation = useConversation({
     agentId: AGENT_ID || "",
     clientTools: clientTools as any,
@@ -274,8 +312,8 @@ export default function Home() {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Agent error";
       setStatus("Error");
-      setError(message);
-      pushActivity(`Connection failed: ${message}`, "error");
+      setError(errorMessage);
+      pushActivity(`Connection failed: ${errorMessage}`, "error");
     }
   };
 
