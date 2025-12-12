@@ -6,34 +6,34 @@ import {
   useMemo,
   useRef,
   useState,
-  type ComponentType,
-  type SVGProps,
 } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import classNames from "classnames";
 import { useConversation } from "@11labs/react";
 import {
   Activity,
   BookOpen,
   Camera,
-  Link2,
+  Cpu,
+  Globe,
   Mic,
   Radio,
   Save,
-  Search,
   Square,
+  Zap,
 } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton, useAuth } from "@clerk/nextjs";
+import { ToolCard } from "../components/ToolCard";
 
-const statusStyle: Record<string, { dot: string; chip: string }> = {
-  Idle: { dot: "bg-emerald-400", chip: "status-idle" },
-  Listening: { dot: "bg-cyan-400", chip: "status-listening" },
-  Thinking: { dot: "bg-purple-400", chip: "status-thinking" },
-  Looking: { dot: "bg-lime-400", chip: "status-looking" },
-  Searching: { dot: "bg-sky-400", chip: "status-searching" },
-  Saving: { dot: "bg-emerald-400", chip: "status-saving" },
-  Recalling: { dot: "bg-indigo-400", chip: "status-recalling" },
-  Error: { dot: "bg-rose-500", chip: "status-error" },
+const statusStyle: Record<string, { dot: string; chip: string; label: string }> = {
+  Idle: { dot: "bg-emerald-400", chip: "status-idle", label: "System Ready" },
+  Listening: { dot: "bg-cyan-400", chip: "status-listening", label: "Listening..." },
+  Thinking: { dot: "bg-purple-400", chip: "status-thinking", label: "Processing..." },
+  Looking: { dot: "bg-lime-400", chip: "status-looking", label: "Visual Analysis" },
+  Searching: { dot: "bg-sky-400", chip: "status-searching", label: "Web Search" },
+  Saving: { dot: "bg-emerald-400", chip: "status-saving", label: "Saving Memory" },
+  Recalling: { dot: "bg-indigo-400", chip: "status-recalling", label: "Recalling" },
+  Error: { dot: "bg-rose-500", chip: "status-error", label: "System Error" },
 };
 
 type StatusKey = keyof typeof statusStyle;
@@ -41,6 +41,7 @@ type StatusKey = keyof typeof statusStyle;
 type ActivityItem = {
   ts: number;
   message: string;
+  type?: "info" | "error" | "success";
 };
 
 const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
@@ -56,8 +57,8 @@ export default function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const { isSignedIn } = useAuth();
 
-  const pushActivity = useCallback((message: string) => {
-    setActivity((prev) => [{ ts: Date.now(), message }, ...prev].slice(0, 12));
+  const pushActivity = useCallback((message: string, type: "info" | "error" | "success" = "info") => {
+    setActivity((prev) => [{ ts: Date.now(), message, type }, ...prev].slice(0, 15));
   }, []);
 
   const callApi = useCallback(async <T,>(path: string, payload?: any): Promise<T> => {
@@ -123,14 +124,14 @@ export default function Home() {
         try {
           const image = await captureFrame();
           const { text } = await callApi<{ text: string }>("/api/vision", { image });
-          pushActivity(`Vision → ${text}`);
+          pushActivity(`Observation: ${text}`, "success");
           setStatus("Idle");
           return text;
         } catch (err: any) {
           const message = err?.message || "Vision failed";
           setStatus("Error");
           setError(message);
-          pushActivity(`Vision error → ${message}`);
+          pushActivity(`Vision error: ${message}`, "error");
           return message;
         } finally {
           setBusy(null);
@@ -141,14 +142,14 @@ export default function Home() {
         setStatus("Searching");
         try {
           const { summary } = await callApi<{ summary: string }>("/api/search", { query });
-          pushActivity(`Search → ${summary}`);
+          pushActivity(`Found info on: "${query}"`, "success");
           setStatus("Idle");
           return summary;
         } catch (err: any) {
           const message = err?.message || "Search failed";
           setStatus("Error");
           setError(message);
-          pushActivity(`Search error → ${message}`);
+          pushActivity(`Search error: ${message}`, "error");
           return message;
         } finally {
           setBusy(null);
@@ -159,14 +160,14 @@ export default function Home() {
         setStatus("Saving");
         try {
           const { message } = await callApi<{ message: string }>("/api/memory/save", { fact });
-          pushActivity(`Memory saved → ${fact}`);
+          pushActivity(`Memorized: "${fact}"`, "success");
           setStatus("Idle");
           return message;
         } catch (err: any) {
           const message = err?.message || "Save failed";
           setStatus("Error");
           setError(message);
-          pushActivity(`Save error → ${message}`);
+          pushActivity(`Memory error: ${message}`, "error");
           return message;
         } finally {
           setBusy(null);
@@ -178,14 +179,14 @@ export default function Home() {
         try {
           const { memories } = await callApi<{ memories: string[] }>("/api/memory/read");
           const text = memories.length ? memories.join(" • ") : "No memories yet";
-          pushActivity(`Memories → ${text}`);
+          pushActivity(`Recalled ${memories.length} facts`, "success");
           setStatus("Idle");
           return text;
         } catch (err: any) {
           const message = err?.message || "Recall failed";
           setStatus("Error");
           setError(message);
-          pushActivity(`Recall error → ${message}`);
+          pushActivity(`Recall error: ${message}`, "error");
           return message;
         } finally {
           setBusy(null);
@@ -228,26 +229,26 @@ export default function Home() {
 
   const conversation = useConversation({
     onConnect: () => {
-      pushActivity("Agent connected");
+      pushActivity("Agent connected", "success");
       setStatus("Listening");
     },
     onDisconnect: () => {
-      pushActivity("Agent disconnected");
+      pushActivity("Agent disconnected", "info");
       setStatus("Idle");
     },
     onMessage: (message) => {
       if (message.message) {
-        pushActivity(`Agent: ${message.message.slice(0, 100)}${message.message.length > 100 ? '...' : ''}`);
+        pushActivity(`Agent: ${message.message.slice(0, 100)}${message.message.length > 100 ? '...' : ''}`, "info");
       }
     },
     onError: (error: Error | string) => {
       const errorMessage = typeof error === 'string' ? error : error?.message || "Agent error";
       setStatus("Error");
       setError(errorMessage);
-      pushActivity(`Error: ${errorMessage}`);
+      pushActivity(`Error: ${errorMessage}`, "error");
     },
     onUnhandledClientToolCall: (toolCall) => {
-      pushActivity(`Unhandled tool call: ${toolCall.tool_name || JSON.stringify(toolCall)}`);
+      pushActivity(`Unhandled tool call: ${toolCall.tool_name || JSON.stringify(toolCall)}`, "error");
       console.warn(`Unhandled client tool call:`, toolCall);
     },
   });
@@ -276,7 +277,7 @@ export default function Home() {
       const errorMessage = err instanceof Error ? err.message : "Agent error";
       setStatus("Error");
       setError(errorMessage);
-      pushActivity(`Agent error → ${errorMessage}`);
+      pushActivity(`Agent error: ${errorMessage}`, "error");
     }
   };
 
@@ -301,194 +302,265 @@ export default function Home() {
   const chip = statusStyle[status] || statusStyle.Idle;
 
   return (
-    <div className="relative min-h-[calc(100vh-7rem)] overflow-hidden">
+    <div className="relative min-h-[calc(100vh-6rem)] overflow-hidden font-sans">
       <video ref={videoBgRef} className="video-bg" muted playsInline autoPlay />
       <canvas ref={canvasRef} className="hidden" />
       <div className="aurora" />
       <div className="grid-overlay" />
 
-      <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-4 pb-16 pt-2">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-2">
-            <h1 className="hero-title">Multimodal HUD for the Blind</h1>
-            <p className="hero-subtitle">See, know, and remember—powered by ElevenLabs + Clerk + Anthropic + Tavily.</p>
-          </div>
-          <div className="glass-rail">
-            <div className={classNames("status-chip", chip.chip)}>
-              <span className={classNames("status-dot", chip.dot)} />
-              <span>{status}</span>
-              {agentStatus && <span className="text-xs text-slate-200/80">Agent: {String(agentStatus)}</span>}
+      <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-8 px-4 pb-16 pt-8">
+
+        {/* Header Section */}
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-2"
+          >
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-6 items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 text-[10px] uppercase font-bold tracking-widest text-emerald-400">
+                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                System Online
+              </span>
             </div>
-          </div>
+            <h1 className="text-4xl font-bold text-white drop-shadow-sm tracking-tight">
+              Multimodal <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Reality OS</span>
+            </h1>
+            <p className="text-sm text-slate-400 max-w-lg leading-relaxed">
+              Advanced neural interface processing visual and auditory inputs in real-time.
+              Powered by ElevenLabs, Anthropic & Clerk.
+            </p>
+          </motion.div>
+
+          {/* Status Indicator */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className={classNames(
+              "status-chip px-3 py-1.5 rounded-full text-xs font-medium tracking-wide uppercase flex items-center gap-2 transition-all duration-300 backdrop-blur-xl",
+              chip.chip
+            )}
+          >
+            <span className={classNames("status-dot w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] transition-all duration-300", chip.dot, "animate-pulse")} />
+            <span className="mr-2">{chip.label}</span>
+            {agentStatus && <span className="border-l border-white/10 pl-3 text-xs text-slate-300/80 font-mono">{String(agentStatus)}</span>}
+          </motion.div>
         </div>
 
         {!AGENT_ID && (
-          <div className="hud-panel p-4 text-sm text-amber-200">
-            Set NEXT_PUBLIC_ELEVENLABS_AGENT_ID to enable the agent. Manual controls remain active.
+          <div className="hud-panel p-4 text-sm text-amber-200 border-l-4 border-amber-500 bg-amber-950/20">
+            <span className="font-bold mr-2">CONFIGURATION WARNING:</span>
+            Set <code>NEXT_PUBLIC_ELEVENLABS_AGENT_ID</code> to enable the conversation engine.
           </div>
         )}
 
+        {/* Not Signed In State */}
         <SignedOut>
-          <div className="hud-panel flex flex-col items-start gap-3 p-6 text-slate-100">
-            <p className="text-lg font-medium">Sign in to activate Second Sight.</p>
-            <p className="text-sm text-slate-300">Camera and HUD stay locked until you authenticate with Clerk.</p>
-            <SignInButton>
-              <button className="px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-100 border border-emerald-400/60 shadow-glow hover:bg-emerald-500/30 transition">Sign In</button>
-            </SignInButton>
+          <div className="flex h-[50vh] items-center justify-center">
+            <div className="hud-panel flex max-w-md flex-col items-center gap-6 p-10 text-center">
+              <div className="h-20 w-20 rounded-full bg-slate-900/50 flex items-center justify-center border border-emerald-500/20 shadow-glow">
+                <Zap className="h-10 w-10 text-emerald-400" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-2xl font-bold text-white">Authentication Required</p>
+                <p className="text-sm text-slate-400">Initialize biometric sequence to access the neural interface.</p>
+              </div>
+              <SignInButton>
+                <button className="group relative px-8 py-3 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-[0.98]">
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    Initialize Session
+                    <Radio className="h-4 w-4" />
+                  </span>
+                </button>
+              </SignInButton>
+            </div>
           </div>
         </SignedOut>
 
+        {/* Signed In Dashboard */}
         <SignedIn>
-          <div className="hud-grid">
-            <div className="hud-panel p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 panel-title">
-                  <Radio className="h-4 w-4" />
-                  Live Agent Link
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            {/* Left Column: Agent Control & Feed */}
+            <div className="lg:col-span-4 space-y-6">
+
+              {/* Feed Card */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="hud-panel p-1 overflow-hidden group"
+              >
+                <div className="relative overflow-hidden rounded-xl bg-black">
+                  <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-400 backdrop-blur-md border border-emerald-500/20">
+                    <Camera className="h-3 w-3" />
+                    Live Feed
+                  </div>
+                  <video
+                    ref={videoHudRef}
+                    className="h-64 w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+                    muted
+                    playsInline
+                    autoPlay
+                  />
+                  <div className="absolute inset-0 border-[3px] border-emerald-500/10 rounded-xl pointer-events-none" />
                 </div>
-                <span className="text-xs text-slate-400">Agent ID: {AGENT_ID || "Unset"}</span>
-              </div>
-              <div className="relative flex items-center justify-center">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
+                {error && <p className="text-sm text-rose-300 p-3">{error}</p>}
+              </motion.div>
+
+              {/* Agent Control */}
+              <div className="hud-panel p-6 flex flex-col items-center justify-center gap-6 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-emerald-950/10 pointer-events-none" />
+
+                <div className="text-center space-y-1">
+                  <h3 className="text-lg font-semibold text-white">Neural Uplink</h3>
+                  <p className="text-xs text-slate-400 uppercase tracking-wider">
+                    {agentStatus === "connected" ? (isSpeaking ? "Agent Speaking" : "Voice Link Active") : "Ready to Connect"}
+                  </p>
+                </div>
+
+                <button
                   onClick={handleAgentToggle}
                   className={classNames(
-                    "relative h-28 w-28 rounded-full border-2 border-emerald-400/60 bg-emerald-500/10 text-emerald-100 shadow-glow",
-                    "flex items-center justify-center transition focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:ring-offset-2 focus:ring-offset-slate-900"
+                    "relative flex items-center justify-center h-24 w-24 rounded-full transition-all duration-500",
+                    agentStatus === "connected"
+                      ? "bg-red-500/10 border-2 border-red-500 text-red-100 shadow-[0_0_30px_rgba(239,68,68,0.3)] animate-pulse"
+                      : "bg-emerald-500/10 border-2 border-emerald-400 text-emerald-100 shadow-[0_0_30px_rgba(52,211,153,0.2)] hover:shadow-[0_0_50px_rgba(52,211,153,0.4)] hover:bg-emerald-500/20"
                   )}
                 >
-                  <div className="pulse-ring" aria-hidden />
-                  {agentStatus === "connected" ? <Square className="h-8 w-8" /> : <Mic className="h-8 w-8" />}
-                </motion.button>
-              </div>
-              <div className="flex items-center justify-between text-sm text-slate-300">
-                <span>
-                  {agentStatus === "connected" 
-                    ? (isSpeaking ? "Agent speaking..." : "Listening") 
-                    : agentStatus === "connecting" 
-                      ? "Connecting..." 
-                      : "Disconnected"}
-                </span>
-                <div className="flex items-center gap-2">
+                  <AnimatePresence mode="wait">
+                    {agentStatus === "connected" ? (
+                      <motion.div
+                        key="stop"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                      >
+                        <Square className="h-8 w-8 fill-current" />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="start"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                      >
+                        <Mic className="h-8 w-8" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </button>
+
+                <div className="flex gap-4">
                   <button
                     onClick={() => handleAgentToggle()}
-                    className="rounded-full px-3 py-1 border border-white/10 hover:bg-white/5 transition"
+                    disabled={agentStatus === "connected"}
+                    className="text-xs text-slate-400 hover:text-emerald-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium uppercase tracking-wide"
                   >
-                    {agentStatus === "connected" ? "Disconnect" : "Connect"}
+                    Initialize
+                  </button>
+                  <button
+                    onClick={() => handleAgentToggle()}
+                    disabled={agentStatus !== "connected"}
+                    className="text-xs text-slate-400 hover:text-rose-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium uppercase tracking-wide"
+                  >
+                    Terminate
                   </button>
                 </div>
               </div>
+
             </div>
 
-            <div className="hud-panel p-5 space-y-4">
-              <div className="flex items-center gap-2 panel-title">
-                <Activity className="h-4 w-4" />
-                Manual Tools (always on)
+            {/* Middle Column: Manual Tools */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Cpu className="h-4 w-4 text-cyan-400" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-200">Manual Overrides</h3>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <ToolCard
-                  label="Visual Context"
+                  label="Visual Audit"
+                  description="Analyze current frame"
                   icon={Camera}
-                  status="Looking"
+                  status="Vision"
                   busy={busy === "getVisualContext"}
                   onClick={() => manualAction("getVisualContext")}
+                  gradient="from-purple-500/10 via-transparent to-blue-500/10"
                 />
                 <ToolCard
-                  label="Web Search"
-                  icon={Search}
-                  status="Searching"
+                  label="Global Query"
+                  description="Access web data"
+                  icon={Globe}
+                  status="Network"
                   busy={busy === "webSearch"}
                   onClick={() => manualAction("webSearch")}
+                  gradient="from-cyan-500/10 via-transparent to-sky-500/10"
                 />
                 <ToolCard
-                  label="Save Memory"
+                  label="Engram Write"
+                  description="Store detailed fact"
                   icon={Save}
-                  status="Saving"
+                  status="Memory"
                   busy={busy === "saveMemory"}
                   onClick={() => manualAction("saveMemory")}
+                  gradient="from-emerald-500/10 via-transparent to-lime-500/10"
                 />
                 <ToolCard
-                  label="Read Memory"
+                  label="Engram Read"
+                  description="Recall saved data"
                   icon={BookOpen}
-                  status="Recalling"
+                  status="Recall"
                   busy={busy === "readMemory"}
                   onClick={() => manualAction("readMemory")}
+                  gradient="from-amber-500/10 via-transparent to-orange-500/10"
                 />
               </div>
             </div>
 
-            <div className="hud-panel p-5 space-y-4">
-              <div className="flex items-center gap-2 panel-title">
-                <Link2 className="h-4 w-4" />
-                Agent Telemetry
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/40 p-3 text-xs text-slate-200 h-48 overflow-y-auto space-y-2">
-                {activity.length === 0 && <p className="text-slate-400">No activity yet.</p>}
-                {activity.map((item) => (
-                  <div key={item.ts} className="flex items-start gap-2">
-                    <span className="text-emerald-300">•</span>
-                    <div>
-                      <p>{item.message}</p>
-                      <p className="text-[10px] text-slate-400">{new Date(item.ts).toLocaleTimeString()}</p>
+            {/* Right Column: Telemetry */}
+            <div className="lg:col-span-3">
+              <div className="hud-panel h-full min-h-[400px] flex flex-col p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Activity className="h-4 w-4 text-emerald-400" />
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-slate-200">Telemetry</h3>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                  <AnimatePresence initial={false}>
+                    {activity.map((item) => (
+                      <motion.div
+                        key={item.ts}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className={classNames(
+                          "p-3 rounded-lg border text-xs leading-relaxed",
+                          item.type === 'error' ? "bg-rose-950/30 border-rose-500/30 text-rose-200" :
+                            item.type === 'success' ? "bg-emerald-950/30 border-emerald-500/30 text-emerald-200" :
+                              "bg-slate-900/50 border-white/5 text-slate-300"
+                        )}
+                      >
+                        <div className="flex justify-between items-start mb-1 opacity-60">
+                          <span className="text-[10px] font-mono">{new Date(item.ts).toLocaleTimeString()}</span>
+                        </div>
+                        <p>{item.message}</p>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                  {activity.length === 0 && (
+                    <div className="text-center text-slate-500 py-10 text-xs">
+                      <Activity className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      Awaiting system events...
                     </div>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="hud-panel p-5 space-y-3">
-              <div className="flex items-center gap-2 panel-title">
-                <Camera className="h-4 w-4" />
-                Camera Feed
-              </div>
-              <div className="camera-frame">
-                <video
-                  ref={videoHudRef}
-                  className="relative z-10 h-64 w-full object-cover"
-                  muted
-                  playsInline
-                  autoPlay
-                />
-              </div>
-              {error && <p className="text-sm text-rose-300">{error}</p>}
-            </div>
           </div>
         </SignedIn>
+
       </div>
     </div>
-  );
-}
-
-function ToolCard({
-  label,
-  icon: Icon,
-  status,
-  busy,
-  onClick,
-}: {
-  label: string;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-  status: string;
-  busy?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="group tool-card p-4 text-left"
-    >
-      <div className="relative flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="tool-card-icon rounded-lg p-2">
-            <Icon className="h-5 w-5 text-emerald-100" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">{label}</p>
-            <p className="text-xs text-slate-400">{status}</p>
-          </div>
-        </div>
-        {busy && <div className="h-3 w-3 rounded-full bg-emerald-300 animate-pulse" />}
-      </div>
-    </button>
   );
 }
