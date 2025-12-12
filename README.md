@@ -32,7 +32,7 @@ Using your device's camera as "eyes" and natural voice commands, Second Sight ca
 | 🎤 **Voice-First Interface** | Conversational AI powered by ElevenLabs for natural, hands-free interaction |
 | 👁️ **Visual Analysis** | Real-time camera feed analysis using Anthropic Claude vision |
 | 🔍 **Web Search** | Instant knowledge retrieval via Tavily search API |
-| 🧠 **Persistent Memory** | Save and recall facts stored securely with your user profile |
+| 🧠 **Persistent Memory** | Save and recall facts stored securely in Clerk user metadata |
 | 🔐 **Secure Authentication** | User accounts powered by Clerk with OAuth support |
 | 📱 **Mobile-First Design** | Responsive glassmorphism UI optimized for mobile devices |
 
@@ -137,7 +137,7 @@ Create a `.env.local` file in the project root with the following variables:
 - **Framework:** Next.js 15 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS 4 + Framer Motion
-- **Auth:** Clerk
+- **Auth & Memory:** Clerk (authentication + user metadata for persistent memory)
 - **Voice AI:** ElevenLabs Conversational AI
 - **Vision AI:** Anthropic Claude
 - **Search:** Tavily API
@@ -189,8 +189,9 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 - [ElevenLabs](https://elevenlabs.io) — Conversational AI platform
 - [Anthropic](https://anthropic.com) — Claude vision model
-- [Clerk](https://clerk.com) — Authentication infrastructure
+- [Clerk](https://clerk.com) — Authentication & user memory storage
 - [Tavily](https://tavily.com) — AI-powered search API
+- [CodeRabbit](https://coderabbit.ai) — AI-powered code review
 - [Vercel](https://vercel.com) — Next.js deployment platform
 
 ---
