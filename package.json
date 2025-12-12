@@ -1,0 +1,39 @@
+{
+  "name": "second-sight",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0"
+  },
+  "dependencies": {
+    "@11labs/react": "latest",
+    "@anthropic-ai/sdk": "latest",
+    "@clerk/nextjs": "latest",
+    "@elevenlabs/client": "latest",
+    "@tailwindcss/postcss": "latest",
+    "autoprefixer": "latest",
+    "classnames": "latest",
+    "framer-motion": "latest",
+    "lightningcss": "^1.30.2",
+    "lightningcss-darwin-arm64": "^1.30.2",
+    "lucide-react": "latest",
+    "next": "latest",
+    "postcss": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "tailwindcss": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "typescript": "latest"
+  }
+}
