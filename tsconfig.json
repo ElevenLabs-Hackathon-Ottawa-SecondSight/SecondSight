@@ -9,6 +9,7 @@
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
+    "baseUrl": ".",
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -26,6 +27,11 @@
         "name": "next"
       }
     ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
     "incremental": true
   },
   "include": [
