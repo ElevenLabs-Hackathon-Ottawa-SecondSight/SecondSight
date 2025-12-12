@@ -203,41 +203,34 @@ export default function Home() {
     [callApi, captureFrame, pushActivity]
   );
 
-  const clientTools: ClientTool[] = useMemo(
-    () => [
-      {
-        name: "getVisualContext",
-        description: "Analyze the camera view",
-        parameters: {},
-        execute: toolHandlers.getVisualContext,
+  const clientToolsConfig = useMemo(
+    () => ({
+      getVisualContext: async () => {
+        console.log("[ClientTool] getVisualContext called by agent");
+        const result = await toolHandlers.getVisualContext();
+        console.log("[ClientTool] getVisualContext returning to agent:", result);
+        console.log("[ClientTool] getVisualContext result type:", typeof result);
+        return result;
       },
-      {
-        name: "webSearch",
-        description: "Search the web",
-        parameters: {
-          type: "object",
-          properties: { query: { type: "string" } },
-          required: ["query"],
-        },
-        execute: toolHandlers.webSearch,
+      webSearch: async ({ query }: { query: string }) => {
+        console.log("[ClientTool] webSearch called by agent with query:", query);
+        const result = await toolHandlers.webSearch({ query });
+        console.log("[ClientTool] webSearch returning to agent:", result);
+        return result;
       },
-      {
-        name: "saveMemory",
-        description: "Save a fact to long-term memory",
-        parameters: {
-          type: "object",
-          properties: { fact: { type: "string" } },
-          required: ["fact"],
-        },
-        execute: toolHandlers.saveMemory,
+      saveMemory: async ({ fact }: { fact: string }) => {
+        console.log("[ClientTool] saveMemory called by agent with fact:", fact);
+        const result = await toolHandlers.saveMemory({ fact });
+        console.log("[ClientTool] saveMemory returning to agent:", result);
+        return result;
       },
-      {
-        name: "readMemory",
-        description: "Retrieve saved memories",
-        parameters: {},
-        execute: toolHandlers.readMemory,
+      readMemory: async () => {
+        console.log("[ClientTool] readMemory called by agent");
+        const result = await toolHandlers.readMemory();
+        console.log("[ClientTool] readMemory returning to agent:", result);
+        return result;
       },
-    ],
+    }),
     [toolHandlers]
   );
 
@@ -264,7 +257,7 @@ export default function Home() {
       return;
     }
     try {
-      if (!isConnected) {
+      if (agentStatus === "disconnected") {
         setStatus("Listening");
         await connect?.();
         await startRecording?.();
@@ -278,8 +271,8 @@ export default function Home() {
         await stopRecording?.();
         pushActivity("Pausing audio uplink", "info");
       }
-    } catch (err: any) {
-      const message = err?.message || "Agent error";
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Agent error";
       setStatus("Error");
       setError(message);
       pushActivity(`Connection failed: ${message}`, "error");
@@ -310,6 +303,7 @@ export default function Home() {
     <div className="relative min-h-[calc(100vh-6rem)] overflow-hidden font-sans">
       <video ref={videoBgRef} className="video-bg" muted playsInline autoPlay />
       <canvas ref={canvasRef} className="hidden" />
+      <div className="aurora" />
       <div className="grid-overlay" />
 
       <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-8 px-4 pb-16 pt-8">
