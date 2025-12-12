@@ -268,6 +268,7 @@ export default function Home() {
         await conversation.startSession({
           agentId: AGENT_ID,
           clientTools: clientToolsConfig,
+          connectionType: "websocket",
         });
       } else {
         setStatus("Idle");
